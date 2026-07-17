@@ -3,39 +3,40 @@
   const WEEKDAYS_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
   const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
-  // WMO weather code -> [emoji, description, gradient]
+  // WMO weather code -> { icon, nightIcon?, desc, grad: [from,to], glow }
   const WMO = {
-    0: ['☀️', 'Ясно', ['#2980b9', '#6dd5fa']],
-    1: ['🌤️', 'Малооблачно', ['#2980b9', '#6dd5fa']],
-    2: ['⛅', 'Переменная облачность', ['#556270', '#4ecdc4']],
-    3: ['☁️', 'Пасмурно', ['#485563', '#29323c']],
-    45: ['🌫️', 'Туман', ['#606c88', '#3f4c6b']],
-    48: ['🌫️', 'Изморозь', ['#606c88', '#3f4c6b']],
-    51: ['🌦️', 'Слабая морось', ['#4b6cb7', '#182848']],
-    53: ['🌦️', 'Морось', ['#4b6cb7', '#182848']],
-    55: ['🌧️', 'Сильная морось', ['#4b6cb7', '#182848']],
-    56: ['🌧️', 'Ледяная морось', ['#4b6cb7', '#182848']],
-    57: ['🌧️', 'Сильная ледяная морось', ['#4b6cb7', '#182848']],
-    61: ['🌧️', 'Небольшой дождь', ['#3a6073', '#16222a']],
-    63: ['🌧️', 'Дождь', ['#3a6073', '#16222a']],
-    65: ['🌧️', 'Сильный дождь', ['#232526', '#414345']],
-    66: ['🌧️', 'Ледяной дождь', ['#3a6073', '#16222a']],
-    67: ['🌧️', 'Сильный ледяной дождь', ['#232526', '#414345']],
-    71: ['🌨️', 'Небольшой снег', ['#83a4d4', '#b6fbff']],
-    73: ['🌨️', 'Снег', ['#83a4d4', '#b6fbff']],
-    75: ['❄️', 'Сильный снег', ['#5c7a99', '#c9d6df']],
-    77: ['❄️', 'Снежная крупа', ['#5c7a99', '#c9d6df']],
-    80: ['🌦️', 'Небольшой ливень', ['#3a6073', '#16222a']],
-    81: ['🌧️', 'Ливень', ['#3a6073', '#16222a']],
-    82: ['⛈️', 'Сильный ливень', ['#232526', '#0f2027']],
-    85: ['🌨️', 'Небольшой снегопад', ['#83a4d4', '#b6fbff']],
-    86: ['❄️', 'Сильный снегопад', ['#5c7a99', '#c9d6df']],
-    95: ['⛈️', 'Гроза', ['#232526', '#0f2027']],
-    96: ['⛈️', 'Гроза с градом', ['#232526', '#0f2027']],
-    99: ['⛈️', 'Сильная гроза с градом', ['#232526', '#0f2027']],
+    0: { icon: 'i-sun', nightIcon: 'i-moon', desc: 'Ясно', grad: ['#1e88c9', '#6dd5fa'], glow: 'rgba(255,196,90,.55)' },
+    1: { icon: 'i-sun', nightIcon: 'i-moon', desc: 'Преимущественно ясно', grad: ['#2980b9', '#6dd5fa'], glow: 'rgba(255,196,90,.5)' },
+    2: { icon: 'i-cloud-sun', nightIcon: 'i-cloud-moon', desc: 'Переменная облачность', grad: ['#4c6478', '#89b3c2'], glow: 'rgba(255,255,255,.3)' },
+    3: { icon: 'i-cloud', desc: 'Пасмурно', grad: ['#3d4652', '#22282f'], glow: 'rgba(255,255,255,.16)' },
+    45: { icon: 'i-fog', desc: 'Туман', grad: ['#5b6c7a', '#3a4550'], glow: 'rgba(255,255,255,.22)' },
+    48: { icon: 'i-fog', desc: 'Изморозь', grad: ['#5b6c7a', '#3a4550'], glow: 'rgba(255,255,255,.22)' },
+    51: { icon: 'i-drizzle', desc: 'Слабая морось', grad: ['#3f5f80', '#1e3550'], glow: 'rgba(150,190,255,.32)' },
+    53: { icon: 'i-drizzle', desc: 'Морось', grad: ['#3a5876', '#1c3049'], glow: 'rgba(150,190,255,.32)' },
+    55: { icon: 'i-drizzle', desc: 'Сильная морось', grad: ['#334f68', '#182a40'], glow: 'rgba(150,190,255,.32)' },
+    56: { icon: 'i-drizzle', desc: 'Ледяная морось', grad: ['#3a5876', '#1c3049'], glow: 'rgba(150,190,255,.32)' },
+    57: { icon: 'i-drizzle', desc: 'Сильная ледяная морось', grad: ['#334f68', '#182a40'], glow: 'rgba(150,190,255,.32)' },
+    61: { icon: 'i-rain', desc: 'Небольшой дождь', grad: ['#2f4d67', '#151f28'], glow: 'rgba(120,170,255,.35)' },
+    63: { icon: 'i-rain', desc: 'Дождь', grad: ['#294a63', '#151f28'], glow: 'rgba(120,170,255,.35)' },
+    65: { icon: 'i-rain', desc: 'Сильный дождь', grad: ['#20242c', '#0d1015'], glow: 'rgba(120,170,255,.4)' },
+    66: { icon: 'i-rain', desc: 'Ледяной дождь', grad: ['#2f4d67', '#151f28'], glow: 'rgba(120,170,255,.35)' },
+    67: { icon: 'i-rain', desc: 'Сильный ледяной дождь', grad: ['#20242c', '#0d1015'], glow: 'rgba(120,170,255,.4)' },
+    71: { icon: 'i-snow', desc: 'Небольшой снег', grad: ['#5f7a95', '#a9c6d8'], glow: 'rgba(255,255,255,.4)' },
+    73: { icon: 'i-snow', desc: 'Снег', grad: ['#54708c', '#9bb9cc'], glow: 'rgba(255,255,255,.4)' },
+    75: { icon: 'i-snow', desc: 'Сильный снег', grad: ['#44576b', '#8199ac'], glow: 'rgba(255,255,255,.4)' },
+    77: { icon: 'i-snow', desc: 'Снежная крупа', grad: ['#54708c', '#9bb9cc'], glow: 'rgba(255,255,255,.4)' },
+    80: { icon: 'i-rain', desc: 'Небольшой ливень', grad: ['#2f4d67', '#151f28'], glow: 'rgba(120,170,255,.35)' },
+    81: { icon: 'i-rain', desc: 'Ливень', grad: ['#294a63', '#151f28'], glow: 'rgba(120,170,255,.35)' },
+    82: { icon: 'i-storm', desc: 'Сильный ливень', grad: ['#1c1f26', '#08090c'], glow: 'rgba(150,120,255,.4)' },
+    85: { icon: 'i-snow', desc: 'Небольшой снегопад', grad: ['#5f7a95', '#a9c6d8'], glow: 'rgba(255,255,255,.4)' },
+    86: { icon: 'i-snow', desc: 'Сильный снегопад', grad: ['#44576b', '#8199ac'], glow: 'rgba(255,255,255,.4)' },
+    95: { icon: 'i-storm', desc: 'Гроза', grad: ['#1c1f26', '#08090c'], glow: 'rgba(150,120,255,.45)' },
+    96: { icon: 'i-storm', desc: 'Гроза с градом', grad: ['#1c1f26', '#08090c'], glow: 'rgba(150,120,255,.45)' },
+    99: { icon: 'i-storm', desc: 'Сильная гроза с градом', grad: ['#15171c', '#050608'], glow: 'rgba(150,120,255,.5)' },
   };
   const RAIN_CODES = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99];
   const SNOW_CODES = [71, 73, 75, 77, 85, 86];
+  const DEFAULT_INFO = { icon: 'i-cloud', desc: 'Неизвестно', grad: ['#2a5298', '#16222a'], glow: 'rgba(255,255,255,.2)' };
 
   const STORAGE_KEY = 'wf_locations_v1';
   const NOTIFY_KEY = 'wf_notify_enabled';
@@ -59,6 +60,12 @@
   }
   function saveLocations() { localStorage.setItem(STORAGE_KEY, JSON.stringify(locations)); }
 
+  function iconInfo(weathercode, isDay) {
+    const info = WMO[weathercode] || DEFAULT_INFO;
+    const iconId = (isDay === 0 && info.nightIcon) ? info.nightIcon : info.icon;
+    return { iconId, desc: info.desc, grad: info.grad, glow: info.glow };
+  }
+
   // ---------- pages ----------
 
   function buildPager() {
@@ -74,14 +81,14 @@
   function createWeatherPage(loc) {
     const el = document.createElement('section');
     el.className = 'page';
+    const nameLabel = loc.type === 'geo' ? 'Моё местоположение' : loc.name;
     el.innerHTML = `
       <div class="date-block">
-        <div class="weekday">&nbsp;</div>
-        <div class="full-date">&nbsp;</div>
+        <div class="date-line">&nbsp;</div>
         <div class="clock">&nbsp;</div>
       </div>
       <div class="weather-body">
-        <div class="weather-icon">🌡️</div>
+        <div class="weather-icon-wrap"><svg class="weather-icon"><use href="#i-cloud"></use></svg></div>
         <div class="temp">--°</div>
         <div class="temp-feels"></div>
         <div class="desc">Загрузка…</div>
@@ -89,26 +96,26 @@
         <div class="forecast-strip"></div>
       </div>
       <div class="page-footer">
-        <div class="location-name">${loc.type === 'geo' ? '📍 Моё местоположение' : '📍 ' + loc.name}</div>
+        <div class="location-name"><svg><use href="#i-pin"></use></svg><span>${nameLabel}</span></div>
         ${loc.type === 'city' ? '<button class="remove-btn">Удалить</button>' : ''}
       </div>
       <div class="status"></div>
     `;
     const refs = {
-      weekday: el.querySelector('.weekday'),
-      fullDate: el.querySelector('.full-date'),
+      dateLine: el.querySelector('.date-line'),
       clock: el.querySelector('.clock'),
-      icon: el.querySelector('.weather-icon'),
+      iconWrap: el.querySelector('.weather-icon-wrap'),
+      iconUse: el.querySelector('.weather-icon use'),
       temp: el.querySelector('.temp'),
       feels: el.querySelector('.temp-feels'),
       desc: el.querySelector('.desc'),
       hiLo: el.querySelector('.hi-lo'),
       strip: el.querySelector('.forecast-strip'),
-      locationName: el.querySelector('.location-name'),
+      locationName: el.querySelector('.location-name span'),
       removeBtn: el.querySelector('.remove-btn'),
       status: el.querySelector('.status'),
     };
-    const page = { el, refs, loc, type: 'weather', utcOffset: 0, weathercode: null };
+    const page = { el, refs, loc, type: 'weather', utcOffset: 0, weathercode: null, isDay: 1 };
     if (refs.removeBtn) refs.removeBtn.addEventListener('click', () => removeLocation(loc.id));
     return page;
   }
@@ -189,7 +196,7 @@
     pager.scrollTo({ left: idx * pager.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
     currentPageIndex = idx;
     updateDots();
-    applyPageVisuals(pages[idx].type === 'weather' ? pages[idx].weathercode : null);
+    applyPageVisuals(pages[idx]);
   }
 
   function buildDots() {
@@ -212,8 +219,8 @@
       if (p.type !== 'weather') return;
       const nowMs = Date.now() + new Date().getTimezoneOffset() * 60000 + p.utcOffset * 1000;
       const d = new Date(nowMs);
-      p.refs.weekday.textContent = WEEKDAYS[d.getDay()];
-      p.refs.fullDate.textContent = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+      const weekdayCap = WEEKDAYS[d.getDay()].charAt(0).toUpperCase() + WEEKDAYS[d.getDay()].slice(1);
+      p.refs.dateLine.textContent = `${weekdayCap}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
       p.refs.clock.textContent = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     });
   }
@@ -256,13 +263,14 @@
       .then(data => {
         page.utcOffset = data.utc_offset_seconds || 0;
         page.weathercode = data.current_weather.weathercode;
+        page.isDay = data.current_weather.is_day;
         renderWeather(page, data);
         if (page.loc.type === 'geo' && !page.loc.name) {
           reverseGeocode(lat, lon).then(name => {
-            if (name) { page.loc.name = name; page.refs.locationName.textContent = '📍 ' + name; }
+            if (name) { page.loc.name = name; page.refs.locationName.textContent = name; }
           });
         }
-        if (pages.indexOf(page) === currentPageIndex) applyPageVisuals(page.weathercode);
+        if (pages.indexOf(page) === currentPageIndex) applyPageVisuals(page);
         maybeNotify(page, data);
       })
       .catch(() => { page.refs.status.textContent = 'Не удалось загрузить погоду.'; });
@@ -277,12 +285,14 @@
 
   function renderWeather(page, data) {
     const cw = data.current_weather;
-    const info = WMO[cw.weathercode] || ['🌡️', 'Неизвестно', ['#2a5298', '#16222a']];
+    const info = iconInfo(cw.weathercode, cw.is_day);
 
-    page.refs.icon.textContent = info[0];
+    page.refs.iconUse.setAttribute('href', '#' + info.iconId);
+    page.refs.iconWrap.style.setProperty('--icon-glow', info.glow);
     page.refs.temp.textContent = Math.round(cw.temperature) + '°';
-    page.refs.desc.textContent = info[1];
+    page.refs.desc.textContent = info.desc;
     page.refs.status.textContent = '';
+    page.el.classList.add('is-loaded');
 
     if (data.hourly && data.hourly.apparent_temperature) {
       const hourKey = cw.time.slice(0, 13) + ':00';
@@ -300,12 +310,12 @@
     page.refs.strip.innerHTML = '';
     daily.time.forEach((dateStr, i) => {
       const d = new Date(dateStr + 'T00:00:00');
-      const info = WMO[daily.weathercode[i]] || ['🌡️', ''];
+      const info = iconInfo(daily.weathercode[i], 1);
       const card = document.createElement('div');
       card.className = 'forecast-card';
       card.innerHTML = `
         <div class="fc-day">${i === 0 ? 'Сегодня' : WEEKDAYS_SHORT[d.getDay()]}</div>
-        <div class="fc-icon">${info[0]}</div>
+        <svg class="fc-icon"><use href="#${info.iconId}"></use></svg>
         <div class="fc-hi">${Math.round(daily.temperature_2m_max[i])}°</div>
         <div class="fc-lo">${Math.round(daily.temperature_2m_min[i])}°</div>
       `;
@@ -331,10 +341,23 @@
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 
-  function applyPageVisuals(weathercode) {
-    const info = WMO[weathercode] || ['🌡️', '', ['#1e3c72', '#16222a']];
-    document.body.style.background = `linear-gradient(180deg, ${info[2][0]} 0%, ${info[2][1]} 100%)`;
-    setCanvasMode(RAIN_CODES.includes(weathercode) ? 'rain' : SNOW_CODES.includes(weathercode) ? 'snow' : 'none');
+  function applyPageVisuals(page) {
+    if (!page || page.type !== 'weather') {
+      document.body.style.background = `linear-gradient(180deg, ${DEFAULT_INFO.grad[0]} 0%, ${DEFAULT_INFO.grad[1]} 100%)`;
+      setCanvasMode('none');
+      return;
+    }
+    const info = WMO[page.weathercode] || DEFAULT_INFO;
+    const dim = page.isDay === 0 ? 0.62 : 1;
+    const shade = c => {
+      const n = parseInt(c.slice(1), 16);
+      const r = Math.round(((n >> 16) & 255) * dim);
+      const g = Math.round(((n >> 8) & 255) * dim);
+      const b = Math.round((n & 255) * dim);
+      return `rgb(${r},${g},${b})`;
+    };
+    document.body.style.background = `linear-gradient(180deg, ${shade(info.grad[0])} 0%, ${shade(info.grad[1])} 100%)`;
+    setCanvasMode(RAIN_CODES.includes(page.weathercode) ? 'rain' : SNOW_CODES.includes(page.weathercode) ? 'snow' : 'none');
   }
 
   function setCanvasMode(mode) {
@@ -468,7 +491,7 @@
       if (idx !== currentPageIndex && pages[idx]) {
         currentPageIndex = idx;
         updateDots();
-        applyPageVisuals(pages[idx].type === 'weather' ? pages[idx].weathercode : null);
+        applyPageVisuals(pages[idx]);
       }
     }, 80);
   });
@@ -482,7 +505,7 @@
   // ---------- init ----------
 
   buildPager();
-  applyPageVisuals(0);
+  applyPageVisuals(pages[0]);
   fetchAllPages();
   tickClocks();
   updateNotifyBtnUI();
