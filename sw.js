@@ -1,4 +1,4 @@
-const CACHE_NAME = 'weather-app-v1';
+const CACHE_NAME = 'weather-app-v2';
 const CORE_ASSETS = ['/', '/index.html', '/app.js', '/manifest.json'];
 
 self.addEventListener('install', event => {

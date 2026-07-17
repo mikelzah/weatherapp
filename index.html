@@ -17,22 +17,34 @@
   :root { color-scheme: dark; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
-    height: 100%;
     margin: 0;
     padding: 0;
     overscroll-behavior: none;
   }
+  /*
+    Фон намеренно красится на <html>, а не на <body>: фон корневого элемента
+    по спецификации CSS всегда заливает весь видимый холст целиком (canvas
+    background), включая зоны под чёлкой/Dynamic Island и под Home Indicator.
+    В standalone-режиме (иконка на экране «Домой») WebKit не всегда одинаково
+    надёжно растягивает под эти зоны position:fixed-слои или фон body — отсюда
+    чёрные полосы по краям. Красить именно html — самый надёжный обход.
+  */
+  html {
+    height: 100%;
+    background: linear-gradient(180deg, #1e3c72 0%, #2a5298 45%, #16222a 100%);
+    transition: background 1s ease;
+  }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
-    background: linear-gradient(180deg, #1e3c72 0%, #2a5298 45%, #16222a 100%);
     color: #fff;
-    min-height: 100dvh;
+    height: 100vh;
+    height: -webkit-fill-available;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     -webkit-user-select: none;
     user-select: none;
-    transition: background 1s ease;
     overflow: hidden;
     position: relative;
   }

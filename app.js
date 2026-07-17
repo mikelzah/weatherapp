@@ -339,11 +339,16 @@
     bgCanvas.height = window.innerHeight;
   }
   window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('pageshow', resizeCanvas);
+  // На холодном запуске установленного на "Домой" приложения iOS иногда
+  // сообщает innerWidth/innerHeight до того, как безопасные зоны окончательно
+  // применены — досчитываем размер канваса чуть позже, чтобы не было щели.
+  setTimeout(resizeCanvas, 300);
   resizeCanvas();
 
   function applyPageVisuals(page) {
     if (!page || page.type !== 'weather') {
-      document.body.style.background = `linear-gradient(180deg, ${DEFAULT_INFO.grad[0]} 0%, ${DEFAULT_INFO.grad[1]} 100%)`;
+      document.documentElement.style.background = `linear-gradient(180deg, ${DEFAULT_INFO.grad[0]} 0%, ${DEFAULT_INFO.grad[1]} 100%)`;
       setCanvasMode('none');
       return;
     }
@@ -356,7 +361,9 @@
       const b = Math.round((n & 255) * dim);
       return `rgb(${r},${g},${b})`;
     };
-    document.body.style.background = `linear-gradient(180deg, ${shade(info.grad[0])} 0%, ${shade(info.grad[1])} 100%)`;
+    // Красим фон на <html>, а не на <body> — так гарантированно нет чёрных
+    // полос вокруг Dynamic Island/чёлки и над Home Indicator в standalone-режиме.
+    document.documentElement.style.background = `linear-gradient(180deg, ${shade(info.grad[0])} 0%, ${shade(info.grad[1])} 100%)`;
     setCanvasMode(RAIN_CODES.includes(page.weathercode) ? 'rain' : SNOW_CODES.includes(page.weathercode) ? 'snow' : 'none');
   }
 
