@@ -1,0 +1,9 @@
+{
+  "name": "Дата и погода",
+  "short_name": "Погода",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0f2027",
+  "theme_color": "#0f2027",
+  "orientation": "portrait"
+}
