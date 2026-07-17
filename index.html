@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
-<title>Дата и погода</title>
+<title>Мой день</title>
 
 <!-- iOS: запуск как полноценное веб-приложение с домашнего экрана -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Погода">
+<meta name="apple-mobile-web-app-title" content="Мой день">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f2027">
 <link rel="manifest" href="manifest.json">
@@ -66,15 +66,87 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  .top-bar, .pager, .dots, footer { position: relative; z-index: 2; }
+  #app { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; z-index: 2; }
 
-  .top-bar {
+  .view { display: none; flex-direction: column; flex: 1; min-height: 0; }
+  .view.active { display: flex; animation: viewIn .35s cubic-bezier(.2,.8,.2,1); }
+  @keyframes viewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- home dashboard ---------- */
+
+  .home-header { padding: 16px 22px 4px; flex: 0 0 auto; }
+  .home-greeting { font-size: 22px; font-weight: 600; letter-spacing: 0.2px; }
+  .home-date { font-size: 14.5px; opacity: 0.65; margin-top: 3px; letter-spacing: 0.2px; }
+
+  .card-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 18px 10px;
     display: flex;
-    justify-content: flex-end;
-    padding: 14px 18px 0;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .home-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 20px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04));
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: 0 10px 26px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.2);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    text-align: left;
+    color: #fff;
+    transition: transform .15s ease;
+  }
+  .home-card:active { transform: scale(0.98); }
+
+  .home-card-icon-wrap {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    background: rgba(255,255,255,0.10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 0 0 auto;
   }
-  .notify-btn, .refresh-btn {
+  .home-card-icon-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 13px;
+    filter: blur(14px);
+    opacity: 0.55;
+    background: var(--icon-glow, transparent);
+  }
+  .home-card-icon { position: relative; width: 24px; height: 24px; color: rgba(255,255,255,0.95); }
+
+  .home-card-body { flex: 1; min-width: 0; }
+  .home-card-title { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+  .home-card-sub { font-size: 13px; opacity: 0.65; margin-top: 3px; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .home-card-value { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .home-card-chevron { width: 18px; height: 18px; opacity: 0.35; flex: 0 0 auto; }
+
+  /* ---------- shared detail chrome ---------- */
+
+  .detail-top-bar {
+    display: flex;
+    align-items: center;
+    padding: 14px 14px 0;
+    flex: 0 0 auto;
+    gap: 10px;
+  }
+  .detail-title { flex: 1; text-align: center; font-size: 16.5px; font-weight: 600; letter-spacing: 0.2px; }
+  .detail-actions { display: flex; gap: 8px; align-items: center; min-width: 40px; justify-content: flex-end; }
+  .detail-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  .back-btn, .notify-btn, .refresh-btn {
     background: linear-gradient(160deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
     border: 1px solid rgba(255,255,255,0.22);
     box-shadow: 0 6px 16px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.3);
@@ -89,11 +161,14 @@
     backdrop-filter: blur(16px) saturate(160%);
     -webkit-backdrop-filter: blur(16px) saturate(160%);
     transition: transform .15s ease, background .15s ease;
+    flex: 0 0 auto;
   }
-  .notify-btn { margin-right: 10px; }
-  .notify-btn:active, .refresh-btn:active { transform: scale(0.9); background: linear-gradient(160deg, rgba(255,255,255,0.32), rgba(255,255,255,0.1)); }
+  .back-btn svg, .detail-title-icon { width: 18px; height: 18px; }
+  .back-btn:active, .notify-btn:active, .refresh-btn:active { transform: scale(0.9); background: linear-gradient(160deg, rgba(255,255,255,0.32), rgba(255,255,255,0.1)); }
   .refresh-btn.spinning { animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- weather module ---------- */
 
   .pager {
     flex: 1;
@@ -262,6 +337,15 @@
   .city-result:active { transform: scale(0.97); background: rgba(255,255,255,0.2); }
   .hint { opacity: 0.55; font-size: 14px; padding: 6px 2px; }
 
+  .module-footer {
+    text-align: center;
+    font-size: 10.5px;
+    opacity: 0.32;
+    letter-spacing: 0.3px;
+    padding: 10px 0 4px;
+    flex: 0 0 auto;
+  }
+
   footer {
     text-align: center;
     font-size: 10.5px;
@@ -269,6 +353,41 @@
     letter-spacing: 0.3px;
     padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
     flex: 0 0 auto;
+  }
+
+  /* ---------- placeholder modules ---------- */
+
+  .placeholder-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 32px calc(24px + env(safe-area-inset-bottom));
+  }
+  .placeholder-icon-wrap {
+    width: 84px;
+    height: 84px;
+    border-radius: 26px;
+    background: rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .placeholder-icon { width: 40px; height: 40px; color: rgba(255,255,255,0.9); }
+  .placeholder-title { font-size: 21px; font-weight: 600; letter-spacing: 0.2px; }
+  .placeholder-desc { font-size: 15px; opacity: 0.7; margin-top: 10px; line-height: 1.5; max-width: 300px; }
+  .placeholder-soon {
+    margin-top: 22px;
+    font-size: 12.5px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    opacity: 0.55;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.2);
   }
 </style>
 </head>
@@ -392,6 +511,31 @@
     <symbol id="i-pin" viewBox="0 0 24 24">
       <path d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" fill="currentColor"/>
     </symbol>
+    <symbol id="i-back" viewBox="0 0 24 24">
+      <polyline points="15,5 8,12 15,19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24">
+      <polyline points="9,5 16,12 9,19" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-habit" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="4"/>
+      <polyline points="20,33 28,41 45,23" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-finance" viewBox="0 0 64 64">
+      <rect x="8" y="16" width="48" height="36" rx="10" fill="none" stroke="currentColor" stroke-width="4"/>
+      <rect x="34" y="28" width="22" height="14" rx="5" fill="currentColor"/>
+      <circle cx="45" cy="35" r="2.6" fill="#0b1220"/>
+    </symbol>
+    <symbol id="i-weight" viewBox="0 0 64 64">
+      <rect x="8" y="8" width="48" height="48" rx="14" fill="none" stroke="currentColor" stroke-width="4"/>
+      <circle cx="32" cy="34" r="11" fill="none" stroke="currentColor" stroke-width="3.5"/>
+      <line x1="32" y1="34" x2="38" y2="28" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="24" y1="16" x2="28" y2="16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <line x1="36" y1="16" x2="40" y2="16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-water" viewBox="0 0 24 24">
+      <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z" fill="currentColor"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -399,15 +543,27 @@
 <div class="vignette"></div>
 <div class="grain"></div>
 
-<div class="top-bar">
-  <button class="notify-btn" id="notifyBtn" aria-label="Включить уведомления">🔕</button>
-  <button class="refresh-btn" id="refreshBtn" aria-label="Обновить">&#8635;</button>
+<div id="app">
+
+  <section class="view view-home active" id="homeView">
+    <div class="home-header">
+      <div class="home-greeting" id="homeGreeting">&nbsp;</div>
+      <div class="home-date" id="homeDate">&nbsp;</div>
+    </div>
+    <div class="card-list" id="cardList"></div>
+    <footer>Мой день</footer>
+  </section>
+
+  <section class="view view-detail" id="detailView">
+    <div class="detail-top-bar">
+      <button class="back-btn" id="backBtn" aria-label="Назад"><svg><use href="#i-back"></use></svg></button>
+      <div class="detail-title" id="detailTitle"></div>
+      <div class="detail-actions" id="detailActions"></div>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </section>
+
 </div>
-
-<div class="pager" id="pager"></div>
-<div class="dots" id="dots"></div>
-
-<footer>Данные о погоде: Open-Meteo</footer>
 
 <script src="app.js"></script>
 </body>

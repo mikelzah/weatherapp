@@ -1,6 +1,6 @@
 {
-  "name": "Дата и погода",
-  "short_name": "Погода",
+  "name": "Мой день",
+  "short_name": "Мой день",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0f2027",

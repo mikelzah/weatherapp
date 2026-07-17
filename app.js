@@ -38,21 +38,37 @@
   const SNOW_CODES = [71, 73, 75, 77, 85, 86];
   const DEFAULT_INFO = { icon: 'i-cloud', desc: 'Неизвестно', grad: ['#2a5298', '#16222a'], glow: 'rgba(255,255,255,.2)' };
 
+  const MODULES = [
+    { id: 'weather', title: 'Погода', icon: 'i-sun', glow: 'rgba(255,196,90,.5)' },
+    { id: 'habits', title: 'Привычки', icon: 'i-habit', glow: 'rgba(120,220,150,.4)', sub: 'Отмечайте ежедневные привычки и следите за стриком' },
+    { id: 'finance', title: 'Доходы и расходы', icon: 'i-finance', glow: 'rgba(120,190,255,.4)', sub: 'Учёт трат и поступлений по категориям' },
+    { id: 'weight', title: 'Вес', icon: 'i-weight', glow: 'rgba(200,150,255,.4)', sub: 'График веса и напоминания о взвешивании' },
+    { id: 'water', title: 'Вода', icon: 'i-water', glow: 'rgba(110,200,255,.45)', sub: 'Дневная норма воды и быстрый учёт стаканов' },
+  ];
+
   const STORAGE_KEY = 'wf_locations_v1';
   const NOTIFY_KEY = 'wf_notify_enabled';
   const NOTIFY_LOG_KEY = 'wf_notify_log';
 
-  const pager = document.getElementById('pager');
-  const dotsEl = document.getElementById('dots');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const notifyBtn = document.getElementById('notifyBtn');
   const bgCanvas = document.getElementById('bgCanvas');
   const ctx = bgCanvas.getContext('2d');
+
+  const homeView = document.getElementById('homeView');
+  const detailView = document.getElementById('detailView');
+  const cardListEl = document.getElementById('cardList');
+  const homeGreetingEl = document.getElementById('homeGreeting');
+  const homeDateEl = document.getElementById('homeDate');
+  const backBtn = document.getElementById('backBtn');
+  const detailTitleEl = document.getElementById('detailTitle');
+  const detailActionsEl = document.getElementById('detailActions');
+  const detailBodyEl = document.getElementById('detailBody');
 
   let locations = loadLocations();
   let pages = [];
   let currentPageIndex = 0;
   let swReg = null;
+  let currentModule = null;
+  const cardRefs = {};
 
   function loadLocations() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -66,7 +82,147 @@
     return { iconId, desc: info.desc, grad: info.grad, glow: info.glow };
   }
 
-  // ---------- pages ----------
+  // ---------- router ----------
+
+  function showHome() {
+    currentModule = null;
+    homeView.classList.add('active');
+    detailView.classList.remove('active');
+    applyPageVisuals(pages[0]);
+  }
+
+  function openModule(id) {
+    const mod = MODULES.find(m => m.id === id);
+    if (!mod) return;
+    currentModule = id;
+    detailTitleEl.textContent = mod.title;
+    detailActionsEl.innerHTML = '';
+    detailBodyEl.innerHTML = '';
+
+    if (id === 'weather') {
+      detailActionsEl.appendChild(weatherActionsEl);
+      detailBodyEl.appendChild(weatherBodyEl);
+      applyPageVisuals(pages[currentPageIndex]);
+    } else {
+      detailBodyEl.appendChild(buildPlaceholder(mod));
+      applyPageVisuals(null);
+    }
+
+    homeView.classList.remove('active');
+    detailView.classList.add('active');
+  }
+
+  backBtn.addEventListener('click', showHome);
+
+  function buildPlaceholder(mod) {
+    const div = document.createElement('div');
+    div.className = 'placeholder-view';
+    div.innerHTML = `
+      <div class="placeholder-icon-wrap" style="--icon-glow:${mod.glow}"><svg class="placeholder-icon"><use href="#${mod.icon}"></use></svg></div>
+      <div class="placeholder-title">${mod.title}</div>
+      <div class="placeholder-desc">${mod.sub}</div>
+      <div class="placeholder-soon">Скоро в приложении</div>
+    `;
+    return div;
+  }
+
+  // ---------- home dashboard ----------
+
+  function greetingForHour(h) {
+    if (h < 5) return 'Доброй ночи';
+    if (h < 12) return 'Доброе утро';
+    if (h < 18) return 'Добрый день';
+    return 'Добрый вечер';
+  }
+
+  function tickHomeHeader() {
+    const now = new Date();
+    homeGreetingEl.textContent = greetingForHour(now.getHours());
+    const weekdayCap = WEEKDAYS[now.getDay()].charAt(0).toUpperCase() + WEEKDAYS[now.getDay()].slice(1);
+    homeDateEl.textContent = `${weekdayCap}, ${now.getDate()} ${MONTHS[now.getMonth()]}`;
+  }
+
+  function buildHomeCards() {
+    cardListEl.innerHTML = '';
+    MODULES.forEach(mod => {
+      const card = document.createElement('button');
+      card.className = 'home-card';
+      card.innerHTML = `
+        <div class="home-card-icon-wrap" style="--icon-glow:${mod.glow}"><svg class="home-card-icon"><use href="#${mod.icon}"></use></svg></div>
+        <div class="home-card-body">
+          <div class="home-card-title">${mod.title}</div>
+          <div class="home-card-sub">${mod.sub || ''}</div>
+        </div>
+        <div class="home-card-value"></div>
+        <svg class="home-card-chevron"><use href="#i-chevron"></use></svg>
+      `;
+      card.addEventListener('click', () => openModule(mod.id));
+      cardListEl.appendChild(card);
+      cardRefs[mod.id] = {
+        sub: card.querySelector('.home-card-sub'),
+        value: card.querySelector('.home-card-value'),
+      };
+    });
+  }
+
+  function updateWeatherCard(page) {
+    const ref = cardRefs.weather;
+    if (!ref) return;
+    if (!page.weathercode && page.weathercode !== 0) {
+      ref.sub.textContent = page.refs.status.textContent || 'Загрузка…';
+      ref.value.textContent = '';
+      return;
+    }
+    const info = iconInfo(page.weathercode, page.isDay);
+    const name = page.loc.type === 'geo' ? (page.loc.name || 'Моё местоположение') : page.loc.name;
+    ref.sub.textContent = `${name} · ${info.desc}`;
+    ref.value.textContent = page.refs.temp.textContent;
+  }
+
+  // ---------- weather module: pages ----------
+
+  let weatherActionsEl, weatherBodyEl, pager, dotsEl, notifyBtn, refreshBtn;
+
+  function buildWeatherModule() {
+    weatherActionsEl = document.createElement('div');
+    weatherActionsEl.className = 'detail-actions';
+    weatherActionsEl.innerHTML = `
+      <button class="notify-btn" id="notifyBtn" aria-label="Включить уведомления">🔕</button>
+      <button class="refresh-btn" id="refreshBtn" aria-label="Обновить">&#8635;</button>
+    `;
+    notifyBtn = weatherActionsEl.querySelector('#notifyBtn');
+    refreshBtn = weatherActionsEl.querySelector('#refreshBtn');
+
+    weatherBodyEl = document.createElement('div');
+    weatherBodyEl.className = 'detail-body';
+    weatherBodyEl.innerHTML = `
+      <div class="pager" id="pager"></div>
+      <div class="dots" id="dots"></div>
+      <div class="module-footer">Данные о погоде: Open-Meteo</div>
+    `;
+    pager = weatherBodyEl.querySelector('#pager');
+    dotsEl = weatherBodyEl.querySelector('#dots');
+
+    notifyBtn.addEventListener('click', onNotifyClick);
+    refreshBtn.addEventListener('click', () => {
+      refreshBtn.classList.add('spinning');
+      fetchAllPages();
+      setTimeout(() => refreshBtn.classList.remove('spinning'), 900);
+    });
+
+    let scrollTimer;
+    pager.addEventListener('scroll', () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        const idx = Math.round(pager.scrollLeft / pager.clientWidth);
+        if (idx !== currentPageIndex && pages[idx]) {
+          currentPageIndex = idx;
+          updateDots();
+          if (currentModule === 'weather') applyPageVisuals(pages[idx]);
+        }
+      }, 80);
+    });
+  }
 
   function buildPager() {
     pager.innerHTML = '';
@@ -196,7 +352,7 @@
     pager.scrollTo({ left: idx * pager.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
     currentPageIndex = idx;
     updateDots();
-    applyPageVisuals(pages[idx]);
+    if (currentModule === 'weather') applyPageVisuals(pages[idx]);
   }
 
   function buildDots() {
@@ -223,17 +379,20 @@
       p.refs.dateLine.textContent = `${weekdayCap}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
       p.refs.clock.textContent = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     });
+    tickHomeHeader();
   }
   setInterval(tickClocks, 1000);
 
-  // ---------- weather ----------
+  // ---------- weather data ----------
 
   function fetchWeatherFor(page) {
     if (page.type !== 'weather') return;
     if (page.loc.type === 'geo') {
       page.refs.status.textContent = 'Определяем местоположение…';
+      if (pages.indexOf(page) === 0) updateWeatherCard(page);
       if (!('geolocation' in navigator)) {
         page.refs.status.textContent = 'Геолокация недоступна. Добавьте город свайпом вправо →';
+        if (pages.indexOf(page) === 0) updateWeatherCard(page);
         return;
       }
       navigator.geolocation.getCurrentPosition(
@@ -242,7 +401,10 @@
           page.loc.lon = pos.coords.longitude;
           loadWeatherData(page);
         },
-        () => { page.refs.status.textContent = 'Доступ к геолокации не получен. Добавьте город свайпом вправо →'; },
+        () => {
+          page.refs.status.textContent = 'Доступ к геолокации не получен. Добавьте город свайпом вправо →';
+          if (pages.indexOf(page) === 0) updateWeatherCard(page);
+        },
         { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
       );
     } else {
@@ -267,13 +429,24 @@
         renderWeather(page, data);
         if (page.loc.type === 'geo' && !page.loc.name) {
           reverseGeocode(lat, lon).then(name => {
-            if (name) { page.loc.name = name; page.refs.locationName.textContent = name; }
+            if (name) {
+              page.loc.name = name;
+              page.refs.locationName.textContent = name;
+              if (pages.indexOf(page) === 0) updateWeatherCard(page);
+            }
           });
         }
-        if (pages.indexOf(page) === currentPageIndex) applyPageVisuals(page);
+        if (currentModule === 'weather' && pages.indexOf(page) === currentPageIndex) applyPageVisuals(page);
+        if (pages.indexOf(page) === 0) {
+          updateWeatherCard(page);
+          if (currentModule !== 'weather') applyPageVisuals(page);
+        }
         maybeNotify(page, data);
       })
-      .catch(() => { page.refs.status.textContent = 'Не удалось загрузить погоду.'; });
+      .catch(() => {
+        page.refs.status.textContent = 'Не удалось загрузить погоду.';
+        if (pages.indexOf(page) === 0) updateWeatherCard(page);
+      });
   }
 
   function reverseGeocode(lat, lon) {
@@ -427,7 +600,7 @@
     notifyBtn.setAttribute('aria-label', enabled ? 'Уведомления включены' : 'Включить уведомления');
   }
 
-  notifyBtn.addEventListener('click', () => {
+  function onNotifyClick() {
     const enabled = localStorage.getItem(NOTIFY_KEY) === '1';
     if (enabled) { localStorage.setItem(NOTIFY_KEY, '0'); updateNotifyBtnUI(); return; }
     if (!('Notification' in window)) {
@@ -442,7 +615,7 @@
       }
       updateNotifyBtnUI();
     });
-  });
+  }
 
   function maybeNotify(page, data) {
     if (localStorage.getItem(NOTIFY_KEY) !== '1') return;
@@ -488,32 +661,13 @@
     navigator.serviceWorker.register('sw.js').then(reg => { swReg = reg; }).catch(() => {});
   }
 
-  // ---------- pager scroll tracking ----------
-
-  let scrollTimer;
-  pager.addEventListener('scroll', () => {
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-      const idx = Math.round(pager.scrollLeft / pager.clientWidth);
-      if (idx !== currentPageIndex && pages[idx]) {
-        currentPageIndex = idx;
-        updateDots();
-        applyPageVisuals(pages[idx]);
-      }
-    }, 80);
-  });
-
-  refreshBtn.addEventListener('click', () => {
-    refreshBtn.classList.add('spinning');
-    fetchAllPages();
-    setTimeout(() => refreshBtn.classList.remove('spinning'), 900);
-  });
-
   // ---------- init ----------
 
+  buildHomeCards();
+  buildWeatherModule();
+  updateNotifyBtnUI();
   buildPager();
-  applyPageVisuals(pages[0]);
   fetchAllPages();
   tickClocks();
-  updateNotifyBtnUI();
+  showHome();
 })();
