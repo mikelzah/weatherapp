@@ -1,570 +1,820 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="dark">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
-<title>Мой день</title>
-
-<!-- iOS: запуск как полноценное веб-приложение с домашнего экрана -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Мой день">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0f2027">
-<link rel="manifest" href="manifest.json">
-
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    margin: 0;
-    padding: 0;
-    overscroll-behavior: none;
-  }
-  /*
-    Фон намеренно красится на <html>, а не на <body>: фон корневого элемента
-    по спецификации CSS всегда заливает весь видимый холст целиком (canvas
-    background), включая зоны под чёлкой/Dynamic Island и под Home Indicator.
-    В standalone-режиме (иконка на экране «Домой») WebKit не всегда одинаково
-    надёжно растягивает под эти зоны position:fixed-слои или фон body — отсюда
-    чёрные полосы по краям. Красить именно html — самый надёжный обход.
-  */
-  html {
-    height: 100%;
-    background: linear-gradient(180deg, #1e3c72 0%, #2a5298 45%, #16222a 100%);
-    transition: background 1s ease;
-  }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
-    color: #fff;
-    height: 100vh;
-    height: -webkit-fill-available;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-    -webkit-user-select: none;
-    user-select: none;
-    overflow: hidden;
-    position: relative;
-  }
-
-  #bgCanvas, .vignette, .grain {
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-  }
-  .vignette {
-    background:
-      radial-gradient(ellipse 90% 60% at 50% 20%, rgba(255,255,255,0.10), rgba(255,255,255,0) 60%),
-      radial-gradient(ellipse 100% 60% at 50% 115%, rgba(0,0,0,0.40), rgba(0,0,0,0) 60%);
-  }
-  .grain {
-    opacity: 0.05;
-    mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
-
-  #app { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; z-index: 2; }
-
-  .view { display: none; flex-direction: column; flex: 1; min-height: 0; }
-  .view.active { display: flex; animation: viewIn .35s cubic-bezier(.2,.8,.2,1); }
-  @keyframes viewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-  /* ---------- home dashboard ---------- */
-
-  .home-header { padding: 16px 22px 4px; flex: 0 0 auto; }
-  .home-greeting { font-size: 22px; font-weight: 600; letter-spacing: 0.2px; }
-  .home-date { font-size: 14.5px; opacity: 0.65; margin-top: 3px; letter-spacing: 0.2px; }
-
-  .card-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 14px 18px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .home-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
-    border-radius: 20px;
-    background: linear-gradient(160deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04));
-    border: 1px solid rgba(255,255,255,0.16);
-    box-shadow: 0 10px 26px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.2);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    text-align: left;
-    color: #fff;
-    transition: transform .15s ease;
-  }
-  .home-card:active { transform: scale(0.98); }
-
-  .home-card-icon-wrap {
-    position: relative;
-    width: 46px;
-    height: 46px;
-    border-radius: 15px;
-    background: rgba(255,255,255,0.10);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-  }
-  .home-card-icon-wrap::before {
-    content: '';
-    position: absolute;
-    inset: 2px;
-    border-radius: 13px;
-    filter: blur(14px);
-    opacity: 0.55;
-    background: var(--icon-glow, transparent);
-  }
-  .home-card-icon { position: relative; width: 24px; height: 24px; color: rgba(255,255,255,0.95); }
-
-  .home-card-body { flex: 1; min-width: 0; }
-  .home-card-title { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
-  .home-card-sub { font-size: 13px; opacity: 0.65; margin-top: 3px; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .home-card-value { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-  .home-card-chevron { width: 18px; height: 18px; opacity: 0.35; flex: 0 0 auto; }
-
-  /* ---------- shared detail chrome ---------- */
-
-  .detail-top-bar {
-    display: flex;
-    align-items: center;
-    padding: 14px 14px 0;
-    flex: 0 0 auto;
-    gap: 10px;
-  }
-  .detail-title { flex: 1; text-align: center; font-size: 16.5px; font-weight: 600; letter-spacing: 0.2px; }
-  .detail-actions { display: flex; gap: 8px; align-items: center; min-width: 40px; justify-content: flex-end; }
-  .detail-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-
-  .back-btn, .notify-btn, .refresh-btn {
-    background: linear-gradient(160deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
-    border: 1px solid rgba(255,255,255,0.22);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.3);
-    color: #fff;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    font-size: 17px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    transition: transform .15s ease, background .15s ease;
-    flex: 0 0 auto;
-  }
-  .back-btn svg, .detail-title-icon { width: 18px; height: 18px; }
-  .back-btn:active, .notify-btn:active, .refresh-btn:active { transform: scale(0.9); background: linear-gradient(160deg, rgba(255,255,255,0.32), rgba(255,255,255,0.1)); }
-  .refresh-btn.spinning { animation: spin 0.9s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ---------- weather module ---------- */
-
-  .pager {
-    flex: 1;
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-  }
-  .pager::-webkit-scrollbar { display: none; }
-
-  .page {
-    flex: 0 0 100%;
-    min-width: 100%;
-    scroll-snap-align: start;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 0 24px;
-  }
-
-  .date-line {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-    opacity: 0.7;
-  }
-  .clock {
-    font-size: 32px;
-    font-weight: 200;
-    letter-spacing: 0.5px;
-    margin-top: 2px;
-    font-variant-numeric: tabular-nums;
-    text-shadow: 0 2px 24px rgba(0,0,0,0.25);
-  }
-
-  .weather-body {
-    margin-top: 22px;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: opacity .6s cubic-bezier(.2,.8,.2,1), transform .6s cubic-bezier(.2,.8,.2,1);
-  }
-  .page.is-loaded .weather-body { opacity: 1; transform: none; }
-
-  .weather-icon-wrap {
-    position: relative;
-    width: 96px;
-    height: 96px;
-    margin: 0 auto;
-  }
-  .weather-icon-wrap::before {
-    content: '';
-    position: absolute;
-    inset: 6px;
-    border-radius: 50%;
-    filter: blur(18px);
-    opacity: 0.55;
-    background: var(--icon-glow, transparent);
-  }
-  .weather-icon {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    color: rgba(255,255,255,0.96);
-    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.28));
-  }
-
-  .temp {
-    font-size: 84px;
-    font-weight: 200;
-    line-height: 1;
-    letter-spacing: -2px;
-    font-variant-numeric: tabular-nums;
-    text-shadow: 0 4px 30px rgba(0,0,0,0.25);
-    margin-top: 4px;
-  }
-  .temp-feels { font-size: 14px; opacity: 0.65; margin-top: 4px; min-height: 18px; letter-spacing: 0.2px; }
-  .desc { font-size: 18px; font-weight: 500; margin-top: 8px; letter-spacing: 0.2px; }
-  .hi-lo { font-size: 14px; opacity: 0.65; margin-top: 5px; letter-spacing: 0.2px; }
-
-  .forecast-strip {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    width: 100%;
-    max-width: 340px;
-    margin: 22px auto 0;
-    padding: 2px 2px 6px;
-  }
-  .forecast-strip::-webkit-scrollbar { display: none; }
-  .forecast-card {
-    flex: 0 0 auto;
-    background: linear-gradient(160deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04));
-    border: 1px solid rgba(255,255,255,0.16);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.2);
-    border-radius: 18px;
-    padding: 10px 12px;
-    min-width: 56px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    transition: transform .15s ease;
-  }
-  .forecast-card:active { transform: scale(0.94); }
-  .fc-day { font-size: 11.5px; opacity: 0.75; margin-bottom: 6px; letter-spacing: 0.2px; }
-  .fc-icon { width: 26px; height: 26px; margin: 0 auto; color: rgba(255,255,255,0.94); }
-  .fc-hi { font-size: 14px; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .fc-lo { font-size: 12px; opacity: 0.55; font-variant-numeric: tabular-nums; }
-
-  .page-footer { margin-top: 22px; display: flex; align-items: center; gap: 10px; flex-direction: column; }
-  .location-name { font-size: 15.5px; opacity: 0.8; letter-spacing: 0.2px; display: flex; align-items: center; gap: 5px; }
-  .location-name svg { width: 14px; height: 14px; opacity: 0.85; }
-  .remove-btn {
-    background: rgba(255,90,90,0.16);
-    border: 1px solid rgba(255,120,120,0.25);
-    color: #ffc2c2;
-    border-radius: 10px;
-    padding: 6px 14px;
-    font-size: 12.5px;
-    letter-spacing: 0.2px;
-    transition: transform .15s ease;
-  }
-  .remove-btn:active { transform: scale(0.94); }
-
-  .status { font-size: 13.5px; opacity: 0.6; max-width: 280px; margin-top: 12px; letter-spacing: 0.2px; animation: pulse 1.8s ease-in-out infinite; }
-  .page.is-loaded .status { animation: none; opacity: 0.55; }
-  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.85; } }
-
-  .dots { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 8px 0 4px; flex: 0 0 auto; }
-  .dot { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.3); transition: width .3s ease, background .3s ease; }
-  .dot.active { width: 18px; background: #fff; }
-  .dot-add { border: 1px solid rgba(255,255,255,0.4); background: transparent; }
-  .dot-add.active { border-color: #fff; }
-
-  .add-page-inner { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 14px; }
-  .add-title { font-size: 21px; font-weight: 600; letter-spacing: 0.2px; }
-  .city-input {
-    font-size: 17px;
-    padding: 13px 16px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.16);
-    background: linear-gradient(160deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    color: #fff;
-    outline: none;
-  }
-  .city-input::placeholder { color: rgba(255,255,255,0.45); }
-  .city-results {
-    text-align: left;
-    max-height: 300px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-  }
-  .city-result {
-    padding: 12px 14px;
-    background: linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03));
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 13px;
-    font-size: 15px;
-    transition: transform .15s ease, background .15s ease;
-  }
-  .city-result:active { transform: scale(0.97); background: rgba(255,255,255,0.2); }
-  .hint { opacity: 0.55; font-size: 14px; padding: 6px 2px; }
-
-  .module-footer {
-    text-align: center;
-    font-size: 10.5px;
-    opacity: 0.32;
-    letter-spacing: 0.3px;
-    padding: 10px 0 4px;
-    flex: 0 0 auto;
-  }
-
-  footer {
-    text-align: center;
-    font-size: 10.5px;
-    opacity: 0.32;
-    letter-spacing: 0.3px;
-    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
-    flex: 0 0 auto;
-  }
-
-  /* ---------- placeholder modules ---------- */
-
-  .placeholder-view {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 0 32px calc(24px + env(safe-area-inset-bottom));
-  }
-  .placeholder-icon-wrap {
-    width: 84px;
-    height: 84px;
-    border-radius: 26px;
-    background: rgba(255,255,255,0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
-  }
-  .placeholder-icon { width: 40px; height: 40px; color: rgba(255,255,255,0.9); }
-  .placeholder-title { font-size: 21px; font-weight: 600; letter-spacing: 0.2px; }
-  .placeholder-desc { font-size: 15px; opacity: 0.7; margin-top: 10px; line-height: 1.5; max-width: 300px; }
-  .placeholder-soon {
-    margin-top: 22px;
-    font-size: 12.5px;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    opacity: 0.55;
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.2);
-  }
-</style>
+  <meta charset="UTF-8">
+  <!-- КРИТИЧНО ДЛЯ IPHONE: viewport-fit=cover растягивает приложение на весь экран, игнорируя системные рамки -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>EVO</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Apple Meta Tags (Делают веб-сайт нативным приложением) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EVO">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
+  <meta name="theme-color" content="#0F172A">
+  <style>
+    body { 
+      -webkit-tap-highlight-color: transparent; 
+      /* Отступы от системных элементов iPhone (челка и нижняя полоска) */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    ::-webkit-scrollbar { display: none; }
+  </style>
 </head>
-<body>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-24 font-sans antialiased selection:bg-emerald-500">
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <symbol id="i-sun" viewBox="0 0 64 64">
-      <circle cx="32" cy="32" r="13" fill="currentColor"/>
-      <g stroke="currentColor" stroke-width="4" stroke-linecap="round">
-        <line x1="32" y1="4" x2="32" y2="12"/>
-        <line x1="32" y1="52" x2="32" y2="60"/>
-        <line x1="4" y1="32" x2="12" y2="32"/>
-        <line x1="52" y1="32" x2="60" y2="32"/>
-        <line x1="12.3" y1="12.3" x2="17.9" y2="17.9"/>
-        <line x1="46.1" y1="46.1" x2="51.7" y2="51.7"/>
-        <line x1="51.7" y1="12.3" x2="46.1" y2="17.9"/>
-        <line x1="17.9" y1="46.1" x2="12.3" y2="51.7"/>
-      </g>
-    </symbol>
-    <symbol id="i-moon" viewBox="0 0 24 24">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/>
-    </symbol>
-    <symbol id="i-cloud" viewBox="0 0 64 64">
-      <g fill="currentColor">
-        <ellipse cx="32" cy="42" rx="21" ry="11"/>
-        <circle cx="21" cy="31" r="10.5"/>
-        <circle cx="34" cy="25" r="13.5"/>
-        <circle cx="46" cy="32" r="9.5"/>
-      </g>
-    </symbol>
-    <symbol id="i-cloud-sun" viewBox="0 0 64 64">
-      <g stroke="currentColor" stroke-width="3.2" stroke-linecap="round">
-        <line x1="18" y1="2" x2="18" y2="8"/>
-        <line x1="2" y1="18" x2="8" y2="18"/>
-        <line x1="7.2" y1="7.2" x2="11.5" y2="11.5"/>
-      </g>
-      <circle cx="18" cy="18" r="8.5" fill="currentColor"/>
-      <g fill="currentColor">
-        <ellipse cx="36" cy="46" rx="20" ry="11"/>
-        <circle cx="26" cy="35" r="9"/>
-        <circle cx="38" cy="30" r="12"/>
-        <circle cx="49" cy="36" r="9"/>
-      </g>
-    </symbol>
-    <symbol id="i-cloud-moon" viewBox="0 0 64 64">
-      <g transform="translate(4,2) scale(0.72)">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/>
-      </g>
-      <g fill="currentColor">
-        <ellipse cx="36" cy="46" rx="20" ry="11"/>
-        <circle cx="26" cy="35" r="9"/>
-        <circle cx="38" cy="30" r="12"/>
-        <circle cx="49" cy="36" r="9"/>
-      </g>
-    </symbol>
-    <symbol id="i-fog" viewBox="0 0 64 64">
-      <g fill="currentColor" opacity="0.85">
-        <ellipse cx="32" cy="32" rx="19" ry="9.5"/>
-        <circle cx="22" cy="22" r="8.5"/>
-        <circle cx="34" cy="18" r="10.5"/>
-        <circle cx="45" cy="24" r="7.5"/>
-      </g>
-      <g stroke="currentColor" stroke-width="3.4" stroke-linecap="round">
-        <line x1="10" y1="46" x2="54" y2="46"/>
-        <line x1="15" y1="54" x2="49" y2="54"/>
-      </g>
-    </symbol>
-    <symbol id="i-drizzle" viewBox="0 0 64 64">
-      <g fill="currentColor">
-        <ellipse cx="32" cy="28" rx="20" ry="10"/>
-        <circle cx="22" cy="18" r="9"/>
-        <circle cx="34" cy="14" r="11"/>
-        <circle cx="45" cy="20" r="8"/>
-      </g>
-      <g stroke="currentColor" stroke-width="3.4" stroke-linecap="round">
-        <line x1="22" y1="46" x2="19" y2="52"/>
-        <line x1="34" y1="46" x2="31" y2="52"/>
-        <line x1="46" y1="46" x2="43" y2="52"/>
-      </g>
-    </symbol>
-    <symbol id="i-rain" viewBox="0 0 64 64">
-      <g fill="currentColor">
-        <ellipse cx="32" cy="26" rx="20" ry="10"/>
-        <circle cx="22" cy="16" r="9"/>
-        <circle cx="34" cy="12" r="11"/>
-        <circle cx="45" cy="18" r="8"/>
-      </g>
-      <g stroke="currentColor" stroke-width="3.4" stroke-linecap="round">
-        <line x1="18" y1="42" x2="14" y2="53"/>
-        <line x1="30" y1="42" x2="26" y2="53"/>
-        <line x1="42" y1="42" x2="38" y2="53"/>
-        <line x1="24" y1="46" x2="21" y2="57" opacity="0.65"/>
-        <line x1="36" y1="46" x2="33" y2="57" opacity="0.65"/>
-      </g>
-    </symbol>
-    <symbol id="i-snow" viewBox="0 0 64 64">
-      <g fill="currentColor">
-        <ellipse cx="32" cy="26" rx="20" ry="10"/>
-        <circle cx="22" cy="16" r="9"/>
-        <circle cx="34" cy="12" r="11"/>
-        <circle cx="45" cy="18" r="8"/>
-      </g>
-      <g fill="currentColor">
-        <circle cx="18" cy="46" r="2.4"/>
-        <circle cx="32" cy="52" r="2.4"/>
-        <circle cx="46" cy="46" r="2.4"/>
-        <circle cx="25" cy="56" r="2"/>
-        <circle cx="39" cy="56" r="2"/>
-      </g>
-    </symbol>
-    <symbol id="i-storm" viewBox="0 0 64 64">
-      <g fill="currentColor">
-        <ellipse cx="32" cy="24" rx="20" ry="10"/>
-        <circle cx="22" cy="14" r="9"/>
-        <circle cx="34" cy="10" r="11"/>
-        <circle cx="45" cy="16" r="8"/>
-      </g>
-      <polygon points="35,36 24,52 32,52 27,60 43,42 34,42" fill="currentColor"/>
-    </symbol>
-    <symbol id="i-pin" viewBox="0 0 24 24">
-      <path d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" fill="currentColor"/>
-    </symbol>
-    <symbol id="i-back" viewBox="0 0 24 24">
-      <polyline points="15,5 8,12 15,19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </symbol>
-    <symbol id="i-chevron" viewBox="0 0 24 24">
-      <polyline points="9,5 16,12 9,19" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-    </symbol>
-    <symbol id="i-habit" viewBox="0 0 64 64">
-      <circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="4"/>
-      <polyline points="20,33 28,41 45,23" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </symbol>
-    <symbol id="i-finance" viewBox="0 0 64 64">
-      <rect x="8" y="16" width="48" height="36" rx="10" fill="none" stroke="currentColor" stroke-width="4"/>
-      <rect x="34" y="28" width="22" height="14" rx="5" fill="currentColor"/>
-      <circle cx="45" cy="35" r="2.6" fill="#0b1220"/>
-    </symbol>
-    <symbol id="i-weight" viewBox="0 0 64 64">
-      <rect x="8" y="8" width="48" height="48" rx="14" fill="none" stroke="currentColor" stroke-width="4"/>
-      <circle cx="32" cy="34" r="11" fill="none" stroke="currentColor" stroke-width="3.5"/>
-      <line x1="32" y1="34" x2="38" y2="28" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
-      <line x1="24" y1="16" x2="28" y2="16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-      <line x1="36" y1="16" x2="40" y2="16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-    </symbol>
-    <symbol id="i-water" viewBox="0 0 24 24">
-      <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z" fill="currentColor"/>
-    </symbol>
-  </defs>
-</svg>
+  <div class="max-w-md mx-auto p-4 space-y-4">
 
-<canvas id="bgCanvas"></canvas>
-<div class="vignette"></div>
-<div class="grain"></div>
+    <!-- Шапка -->
+    <header class="flex justify-between items-center pt-2">
+      <div>
+        <h1 class="text-2xl font-black text-emerald-400 tracking-tight flex items-center gap-2">
+  <svg class="w-6 h-6" viewBox="0 0 512 512" fill="currentColor">
+    <polygon points="256,100 400,180 400,330 256,410 112,330 112,180" fill="none" stroke="currentColor" stroke-width="40" stroke-linejoin="round"/>
+    <path d="M220 310 L320 210 H260 L280 140 L180 240 H240 L220 310 Z" fill="currentColor"/>
+  </svg>
+  EVO
+</h1>
+        <p class="text-[11px] text-slate-400 font-medium" id="current-date">...</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="requestPushNotifications()" class="bg-slate-800 p-2 rounded-xl border border-slate-700/80 text-xs text-sky-400" title="Включить пуши">🔔</button>
+        <div class="bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs font-bold text-amber-400 shadow-sm">
+          🔥 <span id="streak-count">0</span> дн
+        </div>
+      </div>
+    </header>
 
-<div id="app">
+    <!-- Навигация (5 вкладок) -->
+    <nav class="grid grid-cols-5 gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 text-[10px] font-bold text-center">
+      <button onclick="switchTab('today')" id="tab-today" class="py-2 rounded-lg bg-emerald-500 text-slate-950">Сегодня</button>
+      <button onclick="switchTab('workout')" id="tab-workout" class="py-2 rounded-lg text-slate-400">Воркаут</button>
+      <button onclick="switchTab('body')" id="tab-body" class="py-2 rounded-lg text-slate-400">Замеры</button>
+      <button onclick="switchTab('trophy')" id="tab-trophy" class="py-2 rounded-lg text-slate-400">Награды</button>
+      <button onclick="switchTab('shop')" id="tab-shop" class="py-2 rounded-lg text-slate-400">Опции</button>
+    </nav>
 
-  <section class="view view-home active" id="homeView">
-    <div class="home-header">
-      <div class="home-greeting" id="homeGreeting">&nbsp;</div>
-      <div class="home-date" id="homeDate">&nbsp;</div>
+    <!-- ================= ВКЛАДКА 1: СЕГОДНЯ ================= -->
+    <div id="view-today" class="space-y-4">
+      
+      <!-- Динамический калораж и эквивалент веса -->
+      <div class="grid grid-cols-2 gap-2">
+        <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700/60">
+          <div class="text-[10px] text-slate-400 font-bold uppercase">Цель калорий</div>
+          <div class="text-base font-black text-emerald-400 mt-0.5" id="calc-calories">2150 ккал</div>
+          <div class="text-[9px] text-slate-500">Авто-расчет по весу</div>
+        </div>
+        <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700/60">
+          <div class="text-[10px] text-slate-400 font-bold uppercase">Сброшено веса</div>
+          <div class="text-xs font-bold text-amber-400 mt-1" id="fun-weight-visual">0 кг</div>
+          <div class="text-[9px] text-slate-500" id="fun-weight-item">Ждем первых за замеров!</div>
+        </div>
+      </div>
+
+      <!-- Кнопка «Анти-Срыв» -->
+      <div class="bg-slate-800 p-3 rounded-2xl border border-rose-500/30 flex justify-between items-center">
+        <div>
+          <div class="text-[10px] font-black uppercase text-rose-400">🛡️ Был незапланированный зажор?</div>
+          <div class="text-[11px] text-slate-400">Сохрани стрик и вернись в строй без стресса</div>
+        </div>
+        <button onclick="openAntiRelapseModal()" class="bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0 active:scale-95">Анти-Срыв</button>
+      </div>
+
+      <!-- Рандомайзер готовой еды -->
+      <div class="bg-gradient-to-r from-purple-950/60 via-slate-800 to-slate-800 p-3.5 rounded-2xl border border-purple-500/30 flex justify-between items-center">
+        <div>
+          <div class="text-[10px] uppercase font-black text-purple-400">🎲 Не знаешь что съесть?</div>
+          <div class="text-xs font-medium text-slate-200 mt-0.5" id="random-food-text">Нажми на кнопку для идеи</div>
+        </div>
+        <button onclick="generateRandomFood()" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0 active:scale-95">Микс</button>
+      </div>
+
+      <!-- Шаги -->
+      <section class="bg-slate-800 p-3.5 rounded-2xl border border-slate-700/60 space-y-2">
+        <div class="flex justify-between items-center text-xs">
+          <span class="font-bold text-emerald-400 flex items-center gap-1">👟 Шаги за день</span>
+          <span class="text-slate-400 font-bold" id="steps-val">0 / 10 000</span>
+        </div>
+        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700/50">
+          <div id="steps-bar" class="bg-emerald-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <input type="number" id="steps-input" placeholder="+ Добавить шаги" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1 text-xs w-full text-slate-100 focus:outline-none focus:border-emerald-500">
+          <button onclick="addSteps()" class="bg-slate-700 hover:bg-slate-600 font-bold px-3 py-1 rounded-xl text-xs shrink-0">ОК</button>
+        </div>
+      </section>
+
+      <!-- Вода -->
+      <section class="bg-slate-800 p-3.5 rounded-2xl border border-slate-700/60">
+        <div class="flex justify-between items-center mb-2.5">
+          <span class="font-bold text-xs text-sky-400">💧 Вода (2.5 - 3.0 л)</span>
+          <span class="text-xs font-bold text-slate-400" id="water-progress">0 / 8 стаканов</span>
+        </div>
+        <div class="grid grid-cols-8 gap-1.5" id="water-grid"></div>
+      </section>
+
+      <!-- Питание Чек-лист -->
+      <section class="bg-slate-800 p-3.5 rounded-2xl border border-slate-700/60 space-y-2">
+        <h2 class="font-bold text-xs text-amber-400 mb-2">🎯 Чек-лист распорядка</h2>
+
+        <label class="flex items-center justify-between p-2.5 bg-slate-900/60 rounded-xl border border-slate-800 cursor-pointer">
+          <span class="text-xs font-medium">🥣 Завтрак (08:00)</span>
+          <input type="checkbox" onchange="toggleTask('meal_breakfast')" id="chk-meal_breakfast" class="w-4 h-4 accent-emerald-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-2.5 bg-slate-900/60 rounded-xl border border-slate-800 cursor-pointer">
+          <span class="text-xs font-medium">🥗 Обед (13:00)</span>
+          <input type="checkbox" onchange="toggleTask('meal_lunch')" id="chk-meal_lunch" class="w-4 h-4 accent-emerald-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-2.5 bg-slate-900/60 rounded-xl border border-slate-800 cursor-pointer">
+          <span class="text-xs font-medium">🍎 Перекус (16:30)</span>
+          <input type="checkbox" onchange="toggleTask('meal_snack')" id="chk-meal_snack" class="w-4 h-4 accent-emerald-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-2.5 bg-slate-900/60 rounded-xl border border-slate-800 cursor-pointer">
+          <span class="text-xs font-medium">🍲 Ужин (19:30)</span>
+          <input type="checkbox" onchange="toggleTask('meal_dinner')" id="chk-meal_dinner" class="w-4 h-4 accent-emerald-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-2.5 bg-slate-900/60 rounded-xl border border-slate-800 cursor-pointer">
+          <span class="text-xs font-medium">🏋️‍♂️ Силовая 20-мин</span>
+          <input type="checkbox" onchange="toggleTask('workout')" id="chk-workout" class="w-4 h-4 accent-emerald-500 rounded">
+        </label>
+      </section>
     </div>
-    <div class="card-list" id="cardList"></div>
-    <footer>Мой день</footer>
-  </section>
 
-  <section class="view view-detail" id="detailView">
-    <div class="detail-top-bar">
-      <button class="back-btn" id="backBtn" aria-label="Назад"><svg><use href="#i-back"></use></svg></button>
-      <div class="detail-title" id="detailTitle"></div>
-      <div class="detail-actions" id="detailActions"></div>
+    <!-- ================= ВКЛАДКА 2: ВОРКАУТ (С Голосовым тренером) ================= -->
+    <div id="view-workout" class="hidden space-y-4">
+      <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700/60 space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="font-bold text-sm text-emerald-400">🔥 Плеер микро-сессии</h2>
+          <button onclick="toggleVoice()" id="btn-voice-toggle" class="text-xs bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg text-emerald-400 font-bold">🎙️ Голос: ВКЛ</button>
+        </div>
+
+        <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 text-center space-y-3">
+          <div class="text-xs font-bold text-slate-400 uppercase tracking-wider" id="ex-step">Упражнение 1</div>
+          <div class="text-base font-black text-amber-400" id="ex-title">Приседания на стул</div>
+          <div class="text-xs text-slate-300 leading-relaxed bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/50" id="ex-desc">
+            Поставьте стул сзади. Пятки не отрываем. 10-12 раз.
+          </div>
+
+          <div class="pt-2">
+            <div class="text-3xl font-black text-sky-400 tracking-wider font-mono" id="timer-display">00:45</div>
+          </div>
+
+          <div class="flex gap-2 pt-2">
+            <button onclick="startTimer()" id="btn-timer-start" class="w-full bg-emerald-500 text-slate-950 font-bold py-2.5 rounded-xl text-xs active:scale-95">СТАРТ</button>
+            <button onclick="nextExercise()" class="w-full bg-slate-800 border border-slate-700 text-slate-200 font-bold py-2.5 rounded-xl text-xs active:scale-95">ДАЛЕЕ ➔</button>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="detail-body" id="detailBody"></div>
-  </section>
 
-</div>
+    <!-- ================= ВКЛАДКА 3: ЗАМЕРЫ И ФОТО (IndexedDB) ================= -->
+    <div id="view-body" class="hidden space-y-4">
+      <section class="bg-slate-800 p-4 rounded-2xl border border-slate-700/60 space-y-3">
+        <h2 class="font-bold text-sm text-emerald-400">📏 Замер объемов (раз в 2 недели)</h2>
+        <div class="grid grid-cols-3 gap-2">
+          <input type="number" id="m-waist" placeholder="Талия (см)" class="bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-center text-slate-100">
+          <input type="number" id="m-belly" placeholder="Живот (см)" class="bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-center text-slate-100">
+          <input type="number" id="m-chest" placeholder="Грудь (см)" class="bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-center text-slate-100">
+        </div>
+        <button onclick="saveBodyMeasurements()" class="w-full bg-emerald-500 text-slate-950 font-bold py-2 rounded-xl text-xs">Зафиксировать замеры</button>
+      </section>
 
-<script src="app.js"></script>
+      <section class="bg-slate-800 p-4 rounded-2xl border border-slate-700/60 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="font-bold text-sm text-sky-400">🔒 Приватный Фото-Дневник</h2>
+          <span class="text-[9px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">IndexedDB (Без сети)</span>
+        </div>
+        
+        <label class="block w-full text-center bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500 p-3 rounded-xl cursor-pointer">
+          <span class="text-xs text-slate-300 font-medium">📷 Добавить фото формы</span>
+          <input type="file" accept="image/*" onchange="uploadPhoto(event)" class="hidden">
+        </label>
+
+        <div class="grid grid-cols-2 gap-2 pt-2" id="photo-gallery"></div>
+      </section>
+    </div>
+
+    <!-- ================= ВКЛАДКА 4: НАГРАДЫ И КАРТОЧКА ПРОГРЕССА ================= -->
+    <div id="view-trophy" class="hidden space-y-4">
+      
+      <!-- Генератор карточки прогресса -->
+      <section class="bg-gradient-to-r from-emerald-950/60 via-slate-800 to-slate-800 p-4 rounded-2xl border border-emerald-500/30 flex justify-between items-center">
+        <div>
+          <h2 class="font-bold text-xs text-emerald-400">🎴 Карточка Успеха</h2>
+          <p class="text-[10px] text-slate-400">Создать графический отчет о результатах</p>
+        </div>
+        <button onclick="generateProgressCard()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs shrink-0 active:scale-95">Сгенерировать</button>
+      </section>
+
+      <!-- Сетка ачивок -->
+      <section class="bg-slate-800 p-4 rounded-2xl border border-slate-700/60 space-y-3">
+        <h2 class="font-bold text-sm text-amber-400">🏆 Достижения и Бейджи</h2>
+        <div class="grid grid-cols-3 gap-2" id="trophy-grid"></div>
+      </section>
+
+      <!-- Ввод веса и SVG График -->
+      <section class="bg-slate-800 p-4 rounded-2xl border border-slate-700/60 space-y-3">
+        <h2 class="font-bold text-sm text-emerald-400">⚖️ Динамика веса</h2>
+        <div class="flex gap-2">
+          <input type="number" step="0.1" id="weight-input" placeholder="Вес (кг)" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs w-full text-slate-100">
+          <button onclick="addWeightLog()" class="bg-emerald-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs shrink-0">Записать</button>
+        </div>
+        <div class="w-full h-36 bg-slate-900/80 rounded-xl p-2 border border-slate-800 flex items-center justify-center">
+          <svg id="weight-chart" class="w-full h-full overflow-visible"></svg>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= ВКЛАДКА 5: ЗАКУПКИ И ОПЦИИ ================= -->
+    <div id="view-shop" class="hidden space-y-4">
+      <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700/60 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="font-bold text-sm text-sky-400">🛒 Чек-лист доставок</h2>
+          <button onclick="resetShopList()" class="text-[10px] text-slate-400 underline">Сбросить</button>
+        </div>
+        <div class="space-y-3 text-xs" id="shop-categories-container"></div>
+      </div>
+
+      <section class="bg-slate-800 p-4 rounded-2xl border border-slate-700/60 space-y-2">
+        <h3 class="font-bold text-xs text-slate-400">💾 Бекап данных</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="exportData()" class="bg-slate-900 border border-slate-700 text-slate-300 py-2 rounded-xl text-[11px] font-bold">Экспорт JSON</button>
+          <button onclick="importData()" class="bg-slate-900 border border-slate-700 text-slate-300 py-2 rounded-xl text-[11px] font-bold">Импорт JSON</button>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО: АНТИ-СРЫВ -->
+  <div id="anti-relapse-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-rose-500/40 p-5 rounded-2xl max-w-sm w-full space-y-4 shadow-2xl">
+      <div class="text-center space-y-1">
+        <div class="text-3xl">🛡️</div>
+        <h3 class="font-black text-base text-rose-400">Все под контролем!</h3>
+        <p class="text-xs text-slate-300 leading-relaxed pt-1">
+          Один незапланированный день или зажор <strong class="text-emerald-400">НЕ отменяет</strong> твоих успехов в долгосрочной перспективе! Метаболизм подстегнут, организм отдохнул.
+        </p>
+      </div>
+      <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 text-xs text-slate-300 space-y-1">
+        <div class="font-bold text-amber-400">План действий на завтра:</div>
+        <div>• Выпить 2.5 - 3.0 л воды</div>
+        <div>• Пройти стандартную норму шагов</div>
+        <div>• Не урезать калории вдвое — вернуть базовый режим</div>
+      </div>
+      <button onclick="confirmAntiRelapse()" class="w-full bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs active:scale-95">Сохранить стрик и продолжить 🚀</button>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО: КАРТОЧКА ПРОГРЕССА (CANVAS) -->
+  <div id="card-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl max-w-sm w-full space-y-3 text-center">
+      <h3 class="font-bold text-sm text-emerald-400">🎴 Твоя карточка прогресса</h3>
+      <div class="overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+        <canvas id="progress-canvas" class="w-full h-auto max-h-[60vh] object-contain"></canvas>
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button onclick="downloadCard()" class="w-full bg-emerald-500 text-slate-950 font-bold py-2 rounded-xl text-xs">💾 Скачать фото</button>
+        <button onclick="closeCardModal()" class="w-full bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- ДАННЫЕ И СОСТОЯНИЕ ---
+    const exercises = [
+      { title: "1. Приседания на стул", desc: "Стул сзади. Пятки не отрываем, колени в стороны. 10-12 раз." },
+      { title: "2. Отжимания от стола", desc: "Упор в стол. Корпус прямой, без прогиба в пояснице. 10-12 раз." },
+      { title: "3. Ягодичный мостик", desc: "Лежа на спине. Подъем таза с фиксацией вверху на 1-2 сек. 12-15 раз." },
+      { title: "4. «Супермен»", desc: "Лежа на животе. Мягкий подъем груди и рук. 10-12 раз." },
+      { title: "5. Планка с колен", desc: "Упор на предплечья и колени. Пресс в напряжении. 30 секунд." }
+    ];
+
+    const foodIdeas = [
+      "Куриное филе на гриле + Гречка + Салат Черри (Кулинария)",
+      "Стейк из индейки + Булгур + Свежий огурец",
+      "Замороженная смесь с морепродуктами (6 мин в СВЧ) + Экспонента",
+      "Цезарь-рап из ВкусВилла + Протеиновый пудинг Ehrmann",
+      "Запеченная треска + Овощная смесь на пару + 2 хлебца"
+    ];
+
+    const shopItems = {
+      "🥩 Белок": ["Филе курицы/индейки запеченное", "Вареные яйца", "Запеченная рыба"],
+      "🥛 Молочка": ["Творог 5%", "Экспонента напиток", "Пудинг Ehrmann"],
+      "❄️ СВЧ-Обеды": ["Заморозка с курицей/овощами", "Овощи на пару"],
+      "🍏 Перекусы": ["Протеиновые батончики", "Миндаль 20г", "Черри / Огурцы"]
+    };
+
+    const achievementsList = [
+      { id: 'first_weight', icon: '🎯', title: 'Первый шаг', desc: 'Записать первый вес' },
+      { id: 'water_master', icon: '💧', title: 'Аквамен', desc: '8 стаканов воды за день' },
+      { id: 'streak_7', icon: '🔥', title: 'Недельный ритм', desc: 'Стрик 7 дней подряд' },
+      { id: 'minus_5kg', icon: '📦', title: 'Минус 5 кг', desc: 'Сбросить первые 5 кг' },
+      { id: 'minus_10kg', icon: '🏋️‍♂️', title: 'Минус 10 кг', desc: 'Сбросить 10 кг' },
+      { id: 'steps_10k', icon: '👟', title: 'Ходок', desc: 'Закрыть 10 000 шагов' }
+    ];
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    let store = JSON.parse(localStorage.getItem('fit_app_data_v4') || localStorage.getItem('fit_app_data_v3') || '{}');
+
+    if (!store[todayStr]) store[todayStr] = { water: 0, steps: 0, tasks: {} };
+    if (!store.weightHistory) store.weightHistory = [{ date: '2026-07-20', weight: 122.2 }];
+    if (!store.measurements) store.measurements = [];
+    if (!store.unlockedBadges) store.unlockedBadges = [];
+    if (!store.shopChecked) store.shopChecked = {};
+
+    let isVoiceEnabled = true;
+
+    function saveData() {
+      localStorage.setItem('fit_app_data_v4', JSON.stringify(store));
+      renderAll();
+    }
+
+    // --- ГОЛОСОВОЙ ТРЕНЕР (SpeechSynthesis) ---
+    function speakText(text) {
+      if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ru-RU';
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleVoice() {
+      isVoiceEnabled = !isVoiceEnabled;
+      document.getElementById('btn-voice-toggle').innerText = isVoiceEnabled ? "🎙️ Голос: ВКЛ" : "🔇 Голос: ВЫКЛ";
+    }
+
+    // --- ИНТЕРАКТИВ И ЗВУКИ ---
+    function playBeep(freq = 600, duration = 0.12) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + duration);
+        osc.stop(ctx.currentTime + duration);
+      } catch(e){}
+    }
+
+    function requestPushNotifications() {
+      if ('Notification' in window) {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') alert("Уведомления успешно включены!");
+        });
+      }
+    }
+
+    function generateRandomFood() {
+      const randomItem = foodIdeas[Math.floor(Math.random() * foodIdeas.length)];
+      document.getElementById('random-food-text').innerText = randomItem;
+      playBeep(900, 0.1);
+    }
+
+    // --- РЕЖИМ АНТИ-СРЫВ ---
+    function openAntiRelapseModal() {
+      document.getElementById('anti-relapse-modal').classList.remove('hidden');
+    }
+
+    function confirmAntiRelapse() {
+      store[todayStr].savedByAntiRelapse = true;
+      document.getElementById('anti-relapse-modal').classList.add('hidden');
+      saveData();
+      alert("Стрик сохранен! Главное — продолжить ритм сегодня.");
+    }
+
+    // --- ГЕНЕРАТОР КАРТОЧКИ ПРОГРЕССА (CANVAS) ---
+    function generateProgressCard() {
+      const canvas = document.getElementById('progress-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 600;
+      canvas.height = 750;
+
+      // Фон градиент
+      const grad = ctx.createLinearGradient(0, 0, 0, 750);
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, '#1e293b');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 600, 750);
+
+      // Рамка
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(15, 15, 570, 720);
+
+      // Заголовок
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 30px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚡ ТРАНСФОРМАЦИЯ 4.0', 300, 70);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '18px sans-serif';
+      ctx.fillText('ОТЧЕТ О ПРОГРЕССЕ', 300, 105);
+
+      // Вычисление данных
+      const history = store.weightHistory || [];
+      const firstW = history[0] ? history[0].weight : 122.2;
+      const curW = history[history.length - 1] ? history[history.length - 1].weight : 122.2;
+      const lost = Math.max(0, (firstW - curW)).toFixed(1);
+
+      // Главная плашка
+      ctx.fillStyle = '#1e293b';
+      ctx.roundRect(40, 130, 520, 130, 20);
+      ctx.fill();
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 48px sans-serif';
+      ctx.fillText(`-${lost} кг`, 300, 195);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('Сброшено веса', 300, 230);
+
+      // Сетка показателей
+      ctx.fillStyle = '#1e293b';
+      ctx.roundRect(40, 280, 245, 120, 20); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 36px sans-serif';
+      ctx.fillText(`${(store[todayStr]?.steps || 0).toLocaleString()}`, 162, 335);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '14px sans-serif';
+      ctx.fillText('Шагов сегодня', 162, 370);
+
+      ctx.fillStyle = '#1e293b';
+      ctx.roundRect(315, 280, 245, 120, 20); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 36px sans-serif';
+      ctx.fillText(`🔥 ${document.getElementById('streak-count').innerText} дн`, 437, 335);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '14px sans-serif';
+      ctx.fillText('Текущий стрик', 437, 370);
+
+      // Ачивки
+      ctx.fillStyle = '#1e293b';
+      ctx.roundRect(40, 420, 520, 110, 20); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#10b981'; ctx.font = 'bold 32px sans-serif';
+      ctx.fillText(`🏆 Бейджей: ${store.unlockedBadges ? store.unlockedBadges.length : 0} / 6`, 300, 475);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '14px sans-serif';
+      ctx.fillText('Достижения разблокированы', 300, 505);
+
+      // Мотивирующая цитата
+      ctx.fillStyle = '#cbd5e1'; ctx.font = 'italic 20px sans-serif';
+      ctx.fillText('«Дисциплина — это выбор между тем, чего ты хочешь сейчас,', 300, 590);
+      ctx.fillText('и тем, чего ты хочешь больше всего.»', 300, 620);
+
+      ctx.fillStyle = '#64748b'; ctx.font = '14px sans-serif';
+      ctx.fillText(new Date().toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' }), 300, 680);
+
+      document.getElementById('card-modal').classList.remove('hidden');
+    }
+
+    function downloadCard() {
+      const canvas = document.getElementById('progress-canvas');
+      const link = document.createElement('a');
+      link.download = `transform_progress_${todayStr}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+
+    function closeCardModal() {
+      document.getElementById('card-modal').classList.add('hidden');
+    }
+
+    // --- ДИНАМИЧЕСКИЙ КАЛОРАЖ И ПРЕДМЕТЫ ---
+    function updateCalorieAndVisuals() {
+      const currentW = store.weightHistory[store.weightHistory.length - 1].weight;
+      const startW = 122.2;
+      const lost = Math.max(0, (startW - currentW)).toFixed(1);
+
+      const bmr = (10 * currentW) + (6.25 * 184) - (5 * 28) + 5;
+      const tdee = bmr * 1.35;
+      const targetCalories = Math.round(tdee - 800);
+
+      document.getElementById('calc-calories').innerText = `${targetCalories} ккал`;
+      document.getElementById('fun-weight-visual').innerText = `-${lost} кг`;
+
+      let funItem = "Ждем первых замеров!";
+      if (lost >= 20) funItem = "Эквивалент: Кулер с водой (20L)!";
+      else if (lost >= 15) funItem = "Эквивалент: Автомобильная шина!";
+      else if (lost >= 10) funItem = "Эквивалент: Большой мешок картошки!";
+      else if (lost >= 5) funItem = "Эквивалент: Ведро с водой (5L)!";
+      else if (lost > 0) funItem = "Отличное начало пути!";
+      
+      document.getElementById('fun-weight-item').innerText = funItem;
+
+      if (lost >= 5) unlockBadge('minus_5kg');
+      if (lost >= 10) unlockBadge('minus_10kg');
+    }
+
+    // --- АЧИВКИ ---
+    function unlockBadge(id) {
+      if (!store.unlockedBadges.includes(id)) {
+        store.unlockedBadges.push(id);
+        playBeep(1000, 0.3);
+      }
+    }
+
+    function renderTrophies() {
+      const container = document.getElementById('trophy-grid');
+      container.innerHTML = achievementsList.map(a => {
+        const isUnlocked = store.unlockedBadges.includes(a.id);
+        return `
+          <div class="p-2.5 rounded-xl border text-center ${isUnlocked ? 'bg-amber-500/10 border-amber-500/40 text-slate-100' : 'bg-slate-900/50 border-slate-800 text-slate-600'}">
+            <div class="text-xl mb-1">${a.icon}</div>
+            <div class="text-[10px] font-bold">${a.title}</div>
+            <div class="text-[8px] opacity-70 leading-tight mt-0.5">${a.desc}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // --- ЗАМЕРЫ И ФОТО (IndexedDB) ---
+    function saveBodyMeasurements() {
+      const waist = document.getElementById('m-waist').value;
+      const belly = document.getElementById('m-belly').value;
+      const chest = document.getElementById('m-chest').value;
+
+      if (waist || belly || chest) {
+        store.measurements.push({ date: todayStr, waist, belly, chest });
+        saveData();
+        alert("Замеры сохранены!");
+      }
+    }
+
+    function getDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('FitPhotosDB', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function uploadPhoto(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const db = await getDB();
+        const tx = db.transaction('photos', 'readwrite');
+        tx.objectStore('photos').add({
+          date: todayStr,
+          weight: store.weightHistory[store.weightHistory.length - 1].weight,
+          image: event.target.result
+        });
+        tx.oncomplete = () => loadPhotos();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function loadPhotos() {
+      try {
+        const db = await getDB();
+        const tx = db.transaction('photos', 'readonly');
+        const req = tx.objectStore('photos').getAll();
+        req.onsuccess = () => {
+          const gallery = document.getElementById('photo-gallery');
+          gallery.innerHTML = req.result.map(p => `
+            <div class="bg-slate-900 p-1.5 rounded-xl border border-slate-800 text-[10px] space-y-1">
+              <img src="${p.image}" class="w-full h-28 object-cover rounded-lg">
+              <div class="flex justify-between text-slate-400 font-bold px-1">
+                <span>${p.date}</span>
+                <span class="text-emerald-400">${p.weight} кг</span>
+              </div>
+            </div>
+          `).join('');
+        };
+      } catch(err){}
+    }
+
+    // --- ВОРКАУТ ТАЙМЕР С ОЗВУЧКОЙ ---
+    let currentExIndex = 0, timerInterval = null, timeLeft = 45;
+
+    function renderExercise() {
+      const ex = exercises[currentExIndex];
+      document.getElementById('ex-step').innerText = `Упражнение ${currentExIndex + 1} из ${exercises.length}`;
+      document.getElementById('ex-title').innerText = ex.title;
+      document.getElementById('ex-desc').innerText = ex.desc;
+      resetTimer();
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timeLeft = 45;
+      document.getElementById('timer-display').innerText = "00:45";
+      document.getElementById('btn-timer-start').innerText = "СТАРТ";
+    }
+
+    function startTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        document.getElementById('btn-timer-start').innerText = "ПРОДОЛЖИТЬ";
+        return;
+      }
+      
+      speakText(`Начинаем упражнение: ${exercises[currentExIndex].title}`);
+      document.getElementById('btn-timer-start').innerText = "ПАУЗА";
+      
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = `00:${timeLeft < 10 ? '0' + timeLeft : timeLeft}`;
+        
+        if (timeLeft === 10) {
+          speakText("Осталось 10 секунд");
+        }
+
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          speakText("Отлично! Упражнение завершено.");
+          playBeep(1200, 0.4);
+          document.getElementById('btn-timer-start').innerText = "ГОТОВО!";
+        }
+      }, 1000);
+    }
+
+    function nextExercise() {
+      currentExIndex = (currentExIndex + 1) % exercises.length;
+      renderExercise();
+    }
+
+    // --- ШАГИ И ВОДА ---
+    function addSteps() {
+      const input = document.getElementById('steps-input');
+      const val = parseInt(input.value);
+      if (!val) return;
+      store[todayStr].steps = (store[todayStr].steps || 0) + val;
+      if (store[todayStr].steps >= 10000) unlockBadge('steps_10k');
+      input.value = '';
+      saveData();
+    }
+
+    function renderWaterGrid() {
+      const grid = document.getElementById('water-grid');
+      grid.innerHTML = '';
+      const count = store[todayStr].water || 0;
+      document.getElementById('water-progress').innerText = `${count} / 8 стаканов`;
+
+      if (count >= 8) unlockBadge('water_master');
+
+      for (let i = 0; i < 8; i++) {
+        const btn = document.createElement('button');
+        btn.className = `h-7 rounded-lg border ${i < count ? 'bg-sky-500 border-sky-400' : 'bg-slate-900 border-slate-700'}`;
+        btn.onclick = () => {
+          playBeep(400 + (i * 50), 0.08);
+          store[todayStr].water = i < count ? i : i + 1;
+          saveData();
+        };
+        grid.appendChild(btn);
+      }
+    }
+
+    function toggleTask(key) {
+      if (!store[todayStr].tasks) store[todayStr].tasks = {};
+      store[todayStr].tasks[key] = !store[todayStr].tasks[key];
+      playBeep(700, 0.08);
+      saveData();
+    }
+
+    function renderTasks() {
+      const tasks = store[todayStr].tasks || {};
+      ['meal_breakfast', 'meal_lunch', 'meal_snack', 'meal_dinner', 'workout'].forEach(key => {
+        const chk = document.getElementById(`chk-${key}`);
+        if (chk) chk.checked = !!tasks[key];
+      });
+
+      const steps = store[todayStr].steps || 0;
+      document.getElementById('steps-val').innerText = `${steps.toLocaleString()} / 10 000`;
+      document.getElementById('steps-bar').style.width = `${Math.min(100, Math.round((steps / 10000) * 100))}%`;
+    }
+
+    // --- ВЕС И ГРАФИК ---
+    function addWeightLog() {
+      const input = document.getElementById('weight-input');
+      const val = parseFloat(input.value);
+      if (!val) return;
+      store.weightHistory.push({ date: todayStr, weight: val });
+      unlockBadge('first_weight');
+      input.value = '';
+      saveData();
+    }
+
+    function renderChart() {
+      const svg = document.getElementById('weight-chart');
+      const history = store.weightHistory || [];
+      if (history.length === 0) return;
+
+      const weights = history.map(h => h.weight);
+      const width = svg.clientWidth || 300, height = svg.clientHeight || 120;
+      svg.innerHTML = '';
+
+      const maxW = Math.max(...weights, 125), minW = 75;
+      const points = history.map((item, idx) => {
+        const x = (idx / Math.max(1, history.length - 1)) * (width - 20) + 10;
+        const y = height - ((item.weight - minW) / (maxW - minW)) * (height - 20) - 10;
+        return `${x},${y}`;
+      }).join(' ');
+
+      const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      polyline.setAttribute('fill', 'none');
+      polyline.setAttribute('stroke', '#10b981');
+      polyline.setAttribute('stroke-width', '3');
+      polyline.setAttribute('points', points);
+      svg.appendChild(polyline);
+    }
+
+    // --- ЗАКУПКИ ---
+    function renderShopList() {
+      const container = document.getElementById('shop-categories-container');
+      container.innerHTML = '';
+      Object.entries(shopItems).forEach(([cat, items]) => {
+        const catEl = document.createElement('div');
+        catEl.className = 'p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-1.5';
+        catEl.innerHTML = `<div class="font-bold text-slate-300">${cat}</div>`;
+        items.forEach(item => {
+          const isChecked = !!store.shopChecked[item];
+          const itemEl = document.createElement('label');
+          itemEl.className = 'flex items-center justify-between cursor-pointer text-slate-400';
+          itemEl.innerHTML = `<span>${item}</span><input type="checkbox" ${isChecked ? 'checked' : ''} class="w-4 h-4 accent-sky-500 rounded">`;
+          itemEl.querySelector('input').onchange = (e) => { store.shopChecked[item] = e.target.checked; saveData(); };
+          catEl.appendChild(itemEl);
+        });
+        container.appendChild(catEl);
+      });
+    }
+
+    function resetShopList() { store.shopChecked = {}; saveData(); }
+
+    // --- НАВИГАЦИЯ ---
+    function switchTab(tab) {
+      ['today', 'workout', 'body', 'trophy', 'shop'].forEach(t => {
+        document.getElementById(`view-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).className = 'py-2 rounded-lg text-slate-400';
+      });
+      document.getElementById(`view-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-${tab}`).className = 'py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold';
+
+      if (tab === 'trophy') renderChart();
+      if (tab === 'body') loadPhotos();
+    }
+
+    function calculateStreak() {
+      let streak = 0, d = new Date();
+      while (true) {
+        const dateKey = d.toISOString().split('T')[0];
+        const dayData = store[dateKey];
+        if (dayData && (dayData.water >= 4 || dayData.savedByAntiRelapse || Object.values(dayData.tasks || {}).some(Boolean))) {
+          streak++; d.setDate(d.getDate() - 1);
+        } else break;
+      }
+      document.getElementById('streak-count').innerText = streak;
+      if (streak >= 7) unlockBadge('streak_7');
+    }
+
+    // --- БЕКАП ---
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(store));
+      const a = document.createElement('a'); a.href = dataStr; a.download = `fit_v4_${todayStr}.json`; a.click();
+    }
+
+    function importData() {
+      const input = document.createElement('input'); input.type = 'file';
+      input.onchange = e => {
+        const reader = new FileReader();
+        reader.readAsText(e.target.files[0], 'UTF-8');
+        reader.onload = ev => { store = JSON.parse(ev.target.result); saveData(); alert("Успешно!"); }
+      }
+      input.click();
+    }
+
+    function renderAll() {
+      renderWaterGrid();
+      renderTasks();
+      updateCalorieAndVisuals();
+      renderTrophies();
+      renderShopList();
+      calculateStreak();
+    }
+
+    function init() {
+      document.getElementById('current-date').innerText = new Date().toLocaleDateString('ru-RU', { weekday: 'long', month: 'long', day: 'numeric' });
+      renderExercise();
+      renderAll();
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+
+    init();
+  </script>
 </body>
 </html>
